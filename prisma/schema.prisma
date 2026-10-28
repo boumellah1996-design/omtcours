@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String       @id @default(cuid())
+  email           String       @unique
+  phone           String?
+  name            String
+  passwordHash    String
+  loginCode       String       @default("")
+  deviceCount     Int          @default(0)
+  role            String
+  activeSessionId String       @default("")
+  lastSeenAt      DateTime?
+  createdAt       DateTime     @default(now())
+  enrollments     Enrollment[]
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  userId      String?
+  courseSlug  String
+  name        String
+  phone       String
+  email       String
+  note          String
+  paymentMethod String    @default("")
+  receiptExt    String    @default("")
+  status        String    @default("pending_payment")
+  createdAt   DateTime  @default(now())
+  activatedAt DateTime?
+  user        User?     @relation(fields: [userId], references: [id])
+}
+
+model Lesson {
+  id           String   @id @default(cuid())
+  courseSlug   String
+  title        String
+  bunnyVideoId String
+  position     Int
+  createdAt    DateTime @default(now())
+}
