@@ -1,8 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/access";
-
-export const dynamic = "force-dynamic";
 import { CAPTCHA_COOKIE, captchaMatches } from "@/lib/captcha";
 import { createEnrollment, listEnrollments, validateEnrollment } from "@/lib/enrollments";
 import { sniffReceipt } from "@/lib/receipt";
