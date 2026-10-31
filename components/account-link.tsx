@@ -14,7 +14,7 @@ export function AccountLink({ compact = false, onNavigate }: { compact?: boolean
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/auth/session")
+    fetch("/api/auth/session", { cache: "no-store", credentials: "include" })
       .then((response) => response.json())
       .then((data: { user?: { role?: string; name?: string } | null }) => {
         if (cancelled) return;

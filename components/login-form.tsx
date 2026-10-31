@@ -28,6 +28,7 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password, next: nextPath }),
       });
       const data = (await response.json()) as { code?: string; next?: string };

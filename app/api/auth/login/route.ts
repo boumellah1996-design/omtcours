@@ -31,7 +31,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const admin = await ensureAdmin();
+    const envAdmin = adminCredentials();
+    if (identifier.toLowerCase() === envAdmin.email && secret === envAdmin.password) {
+      try {
+        await ensureAdmin();
+      } catch (error) {
+        console.error("ensureAdmin failed", error);
+      }
+      const response = NextResponse.json({ ok: true, role: "admin", next: safeNext(next, "admin") });
+      response.cookies.set(
+        SESSION_COOKIE,
+        await createSessionToken({ id: ENV_ADMIN_ID, role: "admin" }),
+        sessionCookieOptions(),
+      );
+      return response;
+    }
+
     const digits = identifier.replace(/\D/g, "");
     const user = await prisma.user.findFirst({
       where: {
@@ -39,20 +54,13 @@ export async function POST(request: Request) {
       },
     });
     const matched = user && (await passwordMatches(secret, user.passwordHash)) ? user : null;
-    const envAdmin = adminCredentials();
-    const useEnvAdmin =
-      !matched &&
-      identifier.toLowerCase() === envAdmin.email &&
-      secret === envAdmin.password;
-
-    if (!matched && !useEnvAdmin) {
+    if (!matched) {
       return NextResponse.json({ ok: false, code: "invalid" }, { status: 401 });
     }
 
-    const account = matched ?? admin ?? { id: ENV_ADMIN_ID, role: "admin" as const };
-    const role = account.role === "admin" ? "admin" : "student";
+    const role = matched.role === "admin" ? "admin" : "student";
     let sid: string | undefined;
-    if (role === "student" && matched) {
+    if (role === "student") {
       sid = crypto.randomUUID();
       await prisma.user.update({ where: { id: matched.id }, data: { activeSessionId: sid } });
     }
@@ -63,7 +71,11 @@ export async function POST(request: Request) {
     });
     response.cookies.set(
       SESSION_COOKIE,
-      await createSessionToken({ id: useEnvAdmin && !matched ? ENV_ADMIN_ID : account.id, role, sid }),
+      await createSessionToken({
+        id: role === "admin" ? ENV_ADMIN_ID : matched.id,
+        role,
+        sid,
+      }),
       sessionCookieOptions(),
     );
     return response;

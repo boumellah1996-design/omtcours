@@ -17,7 +17,7 @@ function useEnrollments() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
   function reload() {
-    fetch("/api/enrollments")
+    fetch("/api/enrollments", { cache: "no-store", credentials: "include" })
       .then(async (response) => {
         if (response.status === 401) {
           setState({ kind: "locked" });

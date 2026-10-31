@@ -1,16 +1,18 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/access";
+
+export const dynamic = "force-dynamic";
 import { CAPTCHA_COOKIE, captchaMatches } from "@/lib/captcha";
 import { createEnrollment, listEnrollments, validateEnrollment } from "@/lib/enrollments";
 import { sniffReceipt } from "@/lib/receipt";
 
 export async function GET() {
   if (!(await requireAdmin())) {
-    return NextResponse.json({ ok: false, code: "AUTH_REQUIRED" }, { status: 401 });
+    return NextResponse.json({ ok: false, code: "AUTH_REQUIRED" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   const enrollments = await listEnrollments();
-  return NextResponse.json({ ok: true, enrollments });
+  return NextResponse.json({ ok: true, enrollments }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {

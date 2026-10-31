@@ -18,7 +18,7 @@ export function AdminRegistered() {
     let stopped = false;
     async function load() {
       try {
-        const response = await fetch("/api/admin/students", { cache: "no-store" });
+        const response = await fetch("/api/admin/students", { cache: "no-store", credentials: "include" });
         if (response.status === 401) {
           if (!stopped) setState({ kind: "locked" });
           return;

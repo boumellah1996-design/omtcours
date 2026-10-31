@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { NextResponse } from "next/server";
 import type { User } from "@prisma/client";
 import { ensureDatabase, prisma } from "@/lib/db";
@@ -34,10 +35,19 @@ export function envAdminUser(): User {
 export type AuthResult = { status: "none" } | { status: "replaced" } | { status: "ok"; user: User };
 
 export async function resolveAuth(): Promise<AuthResult> {
+  await connection();
   const jar = await cookies();
   const session = await readSession(jar.get(SESSION_COOKIE)?.value);
   if (!session) return { status: "none" };
-  if (session.role === "admin" && session.sub === ENV_ADMIN_ID) {
+  if (session.role === "admin") {
+    if (session.sub === ENV_ADMIN_ID) return { status: "ok", user: envAdminUser() };
+    try {
+      await ensureDatabase();
+      const user = await prisma.user.findUnique({ where: { id: session.sub } });
+      if (user?.role === "admin") return { status: "ok", user };
+    } catch (error) {
+      console.error("resolveAuth failed", error);
+    }
     return { status: "ok", user: envAdminUser() };
   }
   try {
@@ -50,7 +60,6 @@ export async function resolveAuth(): Promise<AuthResult> {
     return { status: "ok", user };
   } catch (error) {
     console.error("resolveAuth failed", error);
-    if (session.role === "admin") return { status: "ok", user: envAdminUser() };
     return { status: "none" };
   }
 }
@@ -84,8 +93,12 @@ export async function ensureAdmin() {
   const passwordHash = await hashPassword(password);
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.role === "admin" && !(await passwordMatches(password, existing.passwordHash))) {
-      await prisma.user.update({ where: { id: existing.id }, data: { passwordHash } });
+    const passwordOk = await passwordMatches(password, existing.passwordHash);
+    if (existing.role !== "admin" || !passwordOk) {
+      return prisma.user.update({
+        where: { id: existing.id },
+        data: { role: "admin", passwordHash: passwordOk ? existing.passwordHash : passwordHash },
+      });
     }
     return existing;
   }
