@@ -2,8 +2,13 @@ import { PrismaClient } from "@prisma/client";
 import { randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 
+const url = process.env.DATABASE_URL || "";
+if (!url || url.startsWith("file:")) {
+  throw new Error("Set DATABASE_URL to the same cloud Postgres URL used on Vercel before seeding.");
+}
+
 const scryptAsync = promisify(scrypt);
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasourceUrl: url });
 const email = (process.env.ADMIN_EMAIL || "admin@omt.local").trim().toLowerCase();
 const password = process.env.ADMIN_PASSWORD || "OmtAdmin5401";
 

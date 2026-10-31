@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -23,19 +23,22 @@ model User {
 }
 
 model Enrollment {
-  id          String    @id @default(cuid())
-  userId      String?
-  courseSlug  String
-  name        String
-  phone       String
-  email       String
+  id            String    @id @default(cuid())
+  userId        String?
+  courseSlug    String
+  name          String
+  phone         String
+  email         String
   note          String
   paymentMethod String    @default("")
   receiptExt    String    @default("")
   status        String    @default("pending_payment")
-  createdAt   DateTime  @default(now())
-  activatedAt DateTime?
-  user        User?     @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+  activatedAt   DateTime?
+  user          User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([courseSlug])
 }
 
 model Lesson {
@@ -45,4 +48,6 @@ model Lesson {
   bunnyVideoId String
   position     Int
   createdAt    DateTime @default(now())
+
+  @@index([courseSlug, position])
 }

@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "postinstall": "prisma generate",
-    "build": "prisma generate && node scripts/prepare-db.mjs && next build",
+    "postinstall": "node scripts/prisma-generate.mjs",
+    "build": "node scripts/prisma-generate.mjs && node scripts/prepare-db.mjs && next build",
     "start": "next start",
     "lint": "eslint",
+    "db:push": "prisma db push",
+    "db:import-local": "node scripts/import-sqlite.mjs",
     "seed:admin": "node scripts/seed-admin.mjs"
   },
   "dependencies": {

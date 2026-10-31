@@ -15,6 +15,11 @@ npm run dev
 - المقتطفات التشويقية (حتى 15 مقطعاً لكل دورة): تُؤخذ من فيديوهات الدورة المضافة في `/admin/videos`
 - نصوص الواجهة بالعربي والفرنسي والإنجليزي والإسباني: `lib/i18n.ts`
 
-طلبات الاشتراك تُحفظ محلياً في `data/enrollments.json` إلى أن تُربط قاعدة بيانات. هذا المجلد غير مضاف إلى Git.
+البيانات (الطلبات، الدروس، والحسابات) تُحفظ في Postgres عبر `DATABASE_URL`.
+يجب أن تكون نفس القيمة في ملف `.env` المحلي وفي Vercel → Settings → Environment Variables.
+SQLite (`file:...`) لا يبقى على Vercel لأن الملفات تُمسح مع كل نشر.
 
-حماية لوحة التحكم (`/admin`) تُفعّل لاحقاً بضبط `AUTH_ENFORCE=true` بعد ربط تسجيل الدخول.
+```bash
+npx prisma db push
+npm run db:import-local
+```
