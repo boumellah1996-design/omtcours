@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { CartIcon, CloseIcon, PlayIcon } from "@/components/icons";
 import { useI18n } from "@/components/language-provider";
-import { TEASER_COUNT, TEASER_SECONDS, teaserSources, type CourseSlug } from "@/lib/courses";
+import { TEASER_COUNT, TEASER_SECONDS, type CourseSlug } from "@/lib/courses";
 import { isPaymentMethod, type PaymentMethod } from "@/lib/payments";
 import { site, whatsappLink } from "@/lib/site";
+
+type TeaserLesson = { id: string; title: string; position: number };
 
 type View = "choose" | "pay" | "teasers";
 type FormStatus =
@@ -37,6 +39,13 @@ export function CourseModal({
   const [receipt, setReceipt] = useState<File | null>(null);
   const [captchaImage, setCaptchaImage] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [teasers, setTeasers] = useState<TeaserLesson[]>([]);
+  const [teasersReady, setTeasersReady] = useState(false);
+  const [activeTeaser, setActiveTeaser] = useState("");
+  const playTeaser = useCallback((id: string) => setActiveTeaser(id), []);
+  const stopTeaser = useCallback((id: string) => {
+    setActiveTeaser((current) => (current === id ? "" : current));
+  }, []);
 
   async function loadCaptcha() {
     const response = await fetch("/api/captcha");
@@ -57,6 +66,25 @@ export function CourseModal({
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/courses/${slug}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("failed");
+        const data = (await response.json()) as { course?: { teasers?: TeaserLesson[] } };
+        if (!cancelled) setTeasers(data.course?.teasers ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setTeasers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTeasersReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   const errorText =
     status.kind === "error"
@@ -200,16 +228,22 @@ export function CourseModal({
               </button>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {Array.from({ length: TEASER_COUNT }, (_, index) => (
-                <TeaserTile
-                  key={index}
-                  src={teaserSources[slug][index] ?? ""}
-                  label={`${t.modal.teaserLabel} ${String(index + 1).padStart(2, "0")}`}
-                  waiting={t.modal.waiting}
-                  duration={t.modal.duration}
-                  seconds={TEASER_SECONDS}
-                />
-              ))}
+              {Array.from({ length: TEASER_COUNT }, (_, index) => {
+                const lesson = teasers[index] ?? null;
+                return (
+                  <TeaserTile
+                    key={lesson?.id ?? index}
+                    lesson={lesson}
+                    label={lesson?.title || `${t.modal.teaserLabel} ${String(index + 1).padStart(2, "0")}`}
+                    waiting={teasersReady ? t.modal.waiting : "..."}
+                    duration={t.modal.duration}
+                    seconds={TEASER_SECONDS}
+                    playing={Boolean(lesson && activeTeaser === lesson.id)}
+                    onPlay={playTeaser}
+                    onStop={stopTeaser}
+                  />
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -383,35 +417,81 @@ export function CourseModal({
 }
 
 function TeaserTile({
-  src,
+  lesson,
   label,
   waiting,
   duration,
   seconds,
+  playing,
+  onPlay,
+  onStop,
 }: {
-  src: string;
+  lesson: TeaserLesson | null;
   label: string;
   waiting: string;
   duration: string;
   seconds: number;
+  playing: boolean;
+  onPlay: (id: string) => void;
+  onStop: (id: string) => void;
 }) {
+  const [embedUrl, setEmbedUrl] = useState("");
+  const lessonId = lesson?.id ?? "";
+
+  useEffect(() => {
+    if (!playing || !lessonId) {
+      setEmbedUrl("");
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/teasers/play/${lessonId}`, { cache: "no-store" })
+      .then(async (response) => {
+        const data = (await response.json()) as { embedUrl?: string };
+        if (cancelled) return;
+        if (!response.ok || !data.embedUrl || !isBunnyEmbed(data.embedUrl)) {
+          onStop(lessonId);
+          return;
+        }
+        setEmbedUrl(data.embedUrl);
+      })
+      .catch(() => {
+        if (!cancelled) onStop(lessonId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lessonId, playing, onStop]);
+
+  useEffect(() => {
+    if (!playing || !lessonId) return;
+    const timer = window.setTimeout(() => onStop(lessonId), seconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [lessonId, onStop, playing, seconds]);
+
   return (
     <figure className="overflow-hidden rounded-2xl bg-ink text-white">
       <div className="relative aspect-video">
-        {src ? (
-          <video
-            src={src}
-            controls
-            playsInline
-            preload="metadata"
-            className="h-full w-full bg-black object-cover"
-            onTimeUpdate={(event) => {
-              if (event.currentTarget.currentTime > seconds) {
-                event.currentTarget.pause();
-                event.currentTarget.currentTime = seconds;
-              }
-            }}
+        {playing && embedUrl ? (
+          <iframe
+            src={embedUrl}
+            title={label}
+            className="h-full w-full border-0 bg-black"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="origin"
           />
+        ) : lesson ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (lesson) onPlay(lesson.id);
+            }}
+            className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#161616]"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-omt text-ink">
+              <PlayIcon className="h-5 w-5" />
+            </span>
+          </button>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 bg-[#161616]">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-omt text-ink">
@@ -425,4 +505,16 @@ function TeaserTile({
       <figcaption className="px-3 py-2 text-sm font-bold">{label}</figcaption>
     </figure>
   );
+}
+
+function isBunnyEmbed(url: string) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname === "iframe.mediadelivery.net" || parsed.hostname === "player.mediadelivery.net")
+    );
+  } catch {
+    return false;
+  }
 }

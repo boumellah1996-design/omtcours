@@ -117,6 +117,8 @@ export function LearnPlayer() {
 
   if (!isCourseSlug(slug)) return null;
 
+  const activeLesson = lessons?.find((lesson) => lesson.id === active);
+
   return (
     <section className="mx-auto grid max-w-6xl gap-6 px-5 py-12 lg:grid-cols-[280px_1fr]">
       <aside>
@@ -138,20 +140,26 @@ export function LearnPlayer() {
           {lessons && lessons.length === 0 && !denied ? <p className="text-sm font-bold text-ink/60">{t.admin.noLessons}</p> : null}
         </div>
       </aside>
-      <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white p-4">
-        {ended ? <p className="p-6 text-sm font-bold leading-7">{t.login.replaced}</p> : null}
-        {denied ? <p className="p-6 text-sm font-bold leading-7">{t.learn.locked}</p> : null}
+      <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white p-6">
+        {ended ? <p className="text-sm font-bold leading-7">{t.login.replaced}</p> : null}
+        {denied ? <p className="text-sm font-bold leading-7">{t.learn.locked}</p> : null}
         {embedUrl && !ended ? (
-          <iframe
-            src={embedUrl}
-            title={t.courses[slug].title}
-            className="aspect-video w-full rounded-[20px]"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-            allowFullScreen
-            referrerPolicy="origin"
-          />
+          <>
+            <h2 className="mb-4 text-2xl font-bold">{activeLesson?.title ?? t.courses[slug].title}</h2>
+            <div className="relative overflow-hidden rounded-[20px] pt-[56.25%]">
+              <iframe
+                src={embedUrl}
+                title={activeLesson?.title ?? t.courses[slug].title}
+                loading="lazy"
+                className="absolute inset-0 h-full w-full border-0"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
+                allowFullScreen
+                referrerPolicy="origin"
+              />
+            </div>
+          </>
         ) : ended ? null : (
-          <div className="grid min-h-64 place-items-center p-6 text-center text-sm font-bold leading-7 text-ink/70">{notice}</div>
+          <div className="grid min-h-64 place-items-center text-center text-sm font-bold leading-7 text-ink/70">{notice}</div>
         )}
       </div>
     </section>
@@ -161,7 +169,10 @@ export function LearnPlayer() {
 function isBunnyEmbed(url: string) {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" && parsed.hostname === "iframe.mediadelivery.net";
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname === "iframe.mediadelivery.net" || parsed.hostname === "player.mediadelivery.net")
+    );
   } catch {
     return false;
   }

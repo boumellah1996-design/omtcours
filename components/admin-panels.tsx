@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/language-provider";
-import { TEASER_COUNT, courseCatalog, teaserSources } from "@/lib/courses";
+import { TEASER_COUNT, courseCatalog, type CourseSlug } from "@/lib/courses";
 import type { EnrollmentRecord } from "@/lib/enrollment-types";
+
+type CourseTeaserRow = { slug: CourseSlug; teasers: { id: string }[] };
 
 type LoadState =
   | { kind: "loading" }
@@ -61,7 +63,7 @@ export function AdminOverview() {
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <Stat value={String(courseCatalog.length)} label={t.admin.statsCourses} />
-        <Stat value={String(courseCatalog.length * TEASER_COUNT)} label={t.admin.statsTeasers} tone="yellow" />
+        <Stat value={live.connected ? String(live.teasers) : "—"} label={t.admin.statsTeasers} tone="yellow" />
         <Stat value={state.kind === "ready" ? String(count) : "—"} label={t.admin.statsRequests} />
       </div>
 
@@ -87,25 +89,40 @@ export function AdminOverview() {
 
 export function AdminCourses() {
   const { t } = useI18n();
+  const [rows, setRows] = useState<CourseTeaserRow[] | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetch("/api/courses", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("failed");
+          const data = (await response.json()) as { courses?: CourseTeaserRow[] };
+          setRows(data.courses ?? []);
+        })
+        .catch(() => setRows([]));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <section>
       <h1 className="text-4xl font-black tracking-tight">{t.admin.courses}</h1>
       <div className="mt-6 grid gap-4">
         {courseCatalog.map((course) => {
-          const filled = teaserSources[course.slug].filter(Boolean).length;
+          const teasers = rows?.find((row) => row.slug === course.slug)?.teasers ?? [];
+          const filled = teasers.length;
           return (
             <article key={course.slug} className="rounded-[24px] border border-black/10 bg-white p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-xl font-black">{t.courses[course.slug].title}</h2>
                 <span className="rounded-full bg-omt px-3 py-1 text-xs font-black">
-                  {filled}/{TEASER_COUNT}
+                  {rows ? `${filled}/${TEASER_COUNT}` : "..."}
                 </span>
               </div>
               <p className="mt-2 text-sm text-muted">{t.admin.teaserSlots}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {Array.from({ length: TEASER_COUNT }, (_, index) => {
-                  const ready = Boolean(teaserSources[course.slug][index]);
+                  const ready = Boolean(teasers[index]);
                   return (
                     <div
                       key={index}
@@ -303,7 +320,7 @@ function DeviceMark({ count }: { count: 0 | 1 | 2 }) {
 }
 
 function useLiveStats() {
-  const [stats, setStats] = useState({ online: 0, students: 0, connected: false });
+  const [stats, setStats] = useState({ online: 0, students: 0, teasers: 0, connected: false });
 
   useEffect(() => {
     let stopped = false;
@@ -312,8 +329,15 @@ function useLiveStats() {
       try {
         const response = await fetch("/api/admin/stats", { cache: "no-store" });
         if (!response.ok) throw new Error("failed");
-        const data = (await response.json()) as { online?: number; students?: number };
-        if (!stopped) setStats({ online: data.online ?? 0, students: data.students ?? 0, connected: true });
+        const data = (await response.json()) as { online?: number; students?: number; teasers?: number };
+        if (!stopped) {
+          setStats({
+            online: data.online ?? 0,
+            students: data.students ?? 0,
+            teasers: data.teasers ?? 0,
+            connected: true,
+          });
+        }
       } catch {
         if (!stopped) setStats((current) => ({ ...current, connected: false }));
       }

@@ -57,10 +57,11 @@ export function LoginForm() {
           <label className="grid gap-1 text-sm font-bold">
             {t.login.email}
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="username"
+              inputMode="email"
               dir="ltr"
               className="rounded-2xl border border-black/10 px-4 py-3 font-semibold outline-none focus:border-ink"
             />

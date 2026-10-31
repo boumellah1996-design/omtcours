@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureAdmin } from "@/lib/access";
+import { ENV_ADMIN_ID, adminCredentials, ensureAdmin } from "@/lib/access";
 import { prisma } from "@/lib/db";
 import { passwordMatches } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
@@ -31,31 +31,54 @@ export async function POST(request: Request) {
   }
 
   try {
-    await ensureAdmin();
+    const admin = await ensureAdmin();
     const digits = identifier.replace(/\D/g, "");
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: identifier.toLowerCase() }, ...(digits.length >= 9 ? [{ phone: digits }] : [])],
       },
     });
-    if (!user || !(await passwordMatches(secret, user.passwordHash))) {
+    const matched = user && (await passwordMatches(secret, user.passwordHash)) ? user : null;
+    const envAdmin = adminCredentials();
+    const useEnvAdmin =
+      !matched &&
+      identifier.toLowerCase() === envAdmin.email &&
+      secret === envAdmin.password;
+
+    if (!matched && !useEnvAdmin) {
       return NextResponse.json({ ok: false, code: "invalid" }, { status: 401 });
     }
 
-    const role = user.role === "admin" ? "admin" : "student";
+    const account = matched ?? admin ?? { id: ENV_ADMIN_ID, role: "admin" as const };
+    const role = account.role === "admin" ? "admin" : "student";
     let sid: string | undefined;
-    if (role === "student") {
+    if (role === "student" && matched) {
       sid = crypto.randomUUID();
-      await prisma.user.update({ where: { id: user.id }, data: { activeSessionId: sid } });
+      await prisma.user.update({ where: { id: matched.id }, data: { activeSessionId: sid } });
     }
     const response = NextResponse.json({
       ok: true,
-      role: user.role,
-      next: safeNext(next, user.role),
+      role,
+      next: safeNext(next, role),
     });
-    response.cookies.set(SESSION_COOKIE, await createSessionToken({ id: user.id, role, sid }), sessionCookieOptions());
+    response.cookies.set(
+      SESSION_COOKIE,
+      await createSessionToken({ id: useEnvAdmin && !matched ? ENV_ADMIN_ID : account.id, role, sid }),
+      sessionCookieOptions(),
+    );
     return response;
-  } catch {
+  } catch (error) {
+    console.error("login failed", error);
+    const envAdmin = adminCredentials();
+    if (identifier.toLowerCase() === envAdmin.email && secret === envAdmin.password) {
+      const response = NextResponse.json({ ok: true, role: "admin", next: safeNext(next, "admin") });
+      response.cookies.set(
+        SESSION_COOKIE,
+        await createSessionToken({ id: ENV_ADMIN_ID, role: "admin" }),
+        sessionCookieOptions(),
+      );
+      return response;
+    }
     return NextResponse.json({ ok: false, code: "generic" }, { status: 500 });
   }
 }

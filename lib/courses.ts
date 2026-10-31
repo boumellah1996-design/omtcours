@@ -10,13 +10,6 @@ export type CourseTone = (typeof courseCatalog)[number]["tone"];
 export const TEASER_COUNT = 15;
 export const TEASER_SECONDS = 15;
 
-/** ضع روابط المقتطفات هنا لاحقاً، بحد أقصى مقطع واحد لكل خانة. */
-export const teaserSources: Record<CourseSlug, string[]> = {
-  beginner: [],
-  intermediate: [],
-  professional: [],
-};
-
 export const courseTitlesAr: Record<CourseSlug, string> = {
   beginner: "دورة مبتدئ",
   intermediate: "دورة متوسط متقدم",

@@ -24,13 +24,26 @@ export function bunnyConfigured() {
   return Boolean(process.env.BUNNY_LIBRARY_ID && process.env.BUNNY_TOKEN_KEY);
 }
 
-export function signBunnyEmbed(videoId: string) {
+export function signBunnyEmbed(videoId: string, options: { ttlSeconds?: number; autoplay?: boolean } = {}) {
   const libraryId = process.env.BUNNY_LIBRARY_ID;
   const key = process.env.BUNNY_TOKEN_KEY;
   if (!libraryId || !key || !/^[A-Za-z0-9-]{8,80}$/.test(videoId)) return null;
 
-  const expires = Math.floor(Date.now() / 1000) + 60 * 60 * 4;
+  const expires = Math.floor(Date.now() / 1000) + (options.ttlSeconds ?? 60 * 60 * 4);
   const token = createHash("sha256").update(`${key}${videoId}${expires}`).digest("hex");
-  const url = `https://${EMBED_HOST}/embed/${libraryId}/${videoId}?token=${token}&expires=${expires}&autoplay=false`;
+  const autoplay = options.autoplay ? "true" : "false";
+  const url = `https://${EMBED_HOST}/embed/${libraryId}/${videoId}?token=${token}&expires=${expires}&autoplay=${autoplay}`;
   return { url, expiresAt: new Date(expires * 1000).toISOString() };
+}
+
+export function isBunnyEmbed(url: string) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname === "iframe.mediadelivery.net" || parsed.hostname === "player.mediadelivery.net")
+    );
+  } catch {
+    return false;
+  }
 }
