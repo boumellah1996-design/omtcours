@@ -2,9 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import { randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 
-const url = process.env.DATABASE_URL || "";
-if (!url || url.startsWith("file:")) {
-  throw new Error("Set DATABASE_URL to the same cloud Postgres URL used on Vercel before seeding.");
+import { prismaEnv, readDatabaseUrl } from "./db-url.mjs";
+
+const env = prismaEnv();
+const url = env.DATABASE_URL;
+if (!readDatabaseUrl() || url.startsWith("file:")) {
+  throw new Error("Set DATABASE_URL to the same Neon Postgres URL used on Vercel before seeding.");
 }
 
 const scryptAsync = promisify(scrypt);

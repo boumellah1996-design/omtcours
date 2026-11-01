@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { connection } from "next/server";
 import { ENV_ADMIN_ID, adminCredentials, ensureAdmin } from "@/lib/access";
-import { prisma } from "@/lib/db";
+import { ensureDatabase, prisma } from "@/lib/db";
 import { passwordMatches } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 
@@ -11,12 +12,31 @@ function safeNext(value: unknown, role: string) {
   return value;
 }
 
+async function adminResponse(next: unknown) {
+  const response = NextResponse.json(
+    { ok: true, role: "admin", next: safeNext(next, "admin") },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+  response.cookies.set(SESSION_COOKIE, await createSessionToken({ id: ENV_ADMIN_ID, role: "admin" }), sessionCookieOptions());
+  return response;
+}
+
+function isEnvAdmin(identifier: string, secret: string) {
+  const admin = adminCredentials();
+  return identifier.toLowerCase() === admin.email && secret === admin.password;
+}
+
 export async function POST(request: Request) {
+  try {
+    await connection();
+  } catch {
+    // login remains request-time even if prerender marks it static
+  }
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, code: "invalid" }, { status: 400 });
+    return NextResponse.json({ ok: false, code: "invalid", message: "Invalid login payload." }, { status: 400 });
   }
 
   if (!body || typeof body !== "object") {
@@ -30,67 +50,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, code: "invalid" }, { status: 400 });
   }
 
-  try {
-    const envAdmin = adminCredentials();
-    if (identifier.toLowerCase() === envAdmin.email && secret === envAdmin.password) {
-      try {
-        await ensureAdmin();
-      } catch (error) {
-        console.error("ensureAdmin failed", error);
-      }
-      const response = NextResponse.json({ ok: true, role: "admin", next: safeNext(next, "admin") });
-      response.cookies.set(
-        SESSION_COOKIE,
-        await createSessionToken({ id: ENV_ADMIN_ID, role: "admin" }),
-        sessionCookieOptions(),
-      );
-      return response;
+  if (isEnvAdmin(identifier, secret)) {
+    try {
+      await ensureAdmin();
+    } catch (error) {
+      console.error("ensureAdmin failed", error);
     }
+    return adminResponse(next);
+  }
 
+  try {
+    await ensureDatabase();
     const digits = identifier.replace(/\D/g, "");
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: identifier.toLowerCase() }, ...(digits.length >= 9 ? [{ phone: digits }] : [])],
+        OR: [
+          { email: identifier.toLowerCase() },
+          { loginCode: identifier },
+          ...(digits.length >= 9 ? [{ phone: digits }] : []),
+        ],
       },
     });
     const matched = user && (await passwordMatches(secret, user.passwordHash)) ? user : null;
     if (!matched) {
-      return NextResponse.json({ ok: false, code: "invalid" }, { status: 401 });
+      return NextResponse.json({ ok: false, code: "invalid" }, { status: 401, headers: { "Cache-Control": "no-store" } });
     }
 
-    const role = matched.role === "admin" ? "admin" : "student";
-    let sid: string | undefined;
-    if (role === "student") {
-      sid = crypto.randomUUID();
-      await prisma.user.update({ where: { id: matched.id }, data: { activeSessionId: sid } });
+    if (matched.role === "admin") {
+      return adminResponse(next);
     }
-    const response = NextResponse.json({
-      ok: true,
-      role,
-      next: safeNext(next, role),
-    });
+
+    const sid = crypto.randomUUID();
+    await prisma.user.update({ where: { id: matched.id }, data: { activeSessionId: sid } });
+    const response = NextResponse.json(
+      { ok: true, role: "student", next: safeNext(next, "student") },
+      { headers: { "Cache-Control": "no-store" } },
+    );
     response.cookies.set(
       SESSION_COOKIE,
-      await createSessionToken({
-        id: role === "admin" ? ENV_ADMIN_ID : matched.id,
-        role,
-        sid,
-      }),
+      await createSessionToken({ id: matched.id, role: "student", sid }),
       sessionCookieOptions(),
     );
     return response;
   } catch (error) {
     console.error("login failed", error);
-    const envAdmin = adminCredentials();
-    if (identifier.toLowerCase() === envAdmin.email && secret === envAdmin.password) {
-      const response = NextResponse.json({ ok: true, role: "admin", next: safeNext(next, "admin") });
-      response.cookies.set(
-        SESSION_COOKIE,
-        await createSessionToken({ id: ENV_ADMIN_ID, role: "admin" }),
-        sessionCookieOptions(),
-      );
-      return response;
-    }
-    return NextResponse.json({ ok: false, code: "generic" }, { status: 500 });
+    if (isEnvAdmin(identifier, secret)) return adminResponse(next);
+    return NextResponse.json(
+      { ok: false, code: "db_unavailable", message: "The login database is unavailable." },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }

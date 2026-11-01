@@ -33,13 +33,13 @@ export function CourseSection({ heading = "h2" }: { heading?: "h1" | "h2" }) {
   const Title = heading;
 
   return (
-    <section id="courses" className="relative z-[2] mx-auto max-w-6xl px-5 py-16">
+    <section id="courses" className="relative isolate mx-auto max-w-6xl px-5 py-16">
       <div className="max-w-2xl">
         <p className="text-sm font-extrabold text-ink/50">{t.coursesSection.kicker}</p>
         <Title className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">{t.coursesSection.title}</Title>
         <p className="mt-3 text-base leading-7 text-muted">{t.coursesSection.subtitle}</p>
       </div>
-      <div className="mt-8 grid gap-5 md:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {courseCatalog.map((course) => {
           const copy = t.courses[course.slug];
           const tone = toneClass[course.tone];
@@ -48,7 +48,7 @@ export function CourseSection({ heading = "h2" }: { heading?: "h1" | "h2" }) {
               key={course.slug}
               type="button"
               onClick={() => setActive(course.slug)}
-              className={`flex h-full flex-col rounded-[28px] p-6 text-start shadow-[0_16px_40px_rgba(17,17,17,0.05)] transition hover:-translate-y-1 ${tone.card}`}
+              className={`relative z-0 flex h-full min-w-0 flex-col overflow-hidden rounded-[28px] p-6 text-start shadow-[0_16px_40px_rgba(17,17,17,0.05)] transition hover:-translate-y-1 ${tone.card}`}
             >
               <span className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-black ${tone.badge}`}>{course.level}</span>
               <span className="mt-5 text-2xl font-black leading-tight">{copy.title}</span>

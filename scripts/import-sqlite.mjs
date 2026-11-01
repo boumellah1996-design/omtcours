@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
+import { prismaEnv } from "./db-url.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sqlitePath = process.env.SQLITE_PATH || join(root, "data", "omt.db");
@@ -12,7 +13,7 @@ if (!existsSync(sqlitePath)) {
 
 const { DatabaseSync } = await import("node:sqlite");
 const sqlite = new DatabaseSync(sqlitePath);
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasourceUrl: prismaEnv().DATABASE_URL });
 
 function asDate(value) {
   if (!value) return null;
@@ -34,6 +35,7 @@ try {
   const lessons = sqlite.prepare("SELECT * FROM Lesson").all();
   const enrollments = sqlite.prepare("SELECT * FROM Enrollment").all();
 
+  const userIds = new Map();
   for (const row of users) {
     const data = {
       email: asString(row.email).trim().toLowerCase(),
@@ -47,11 +49,14 @@ try {
       lastSeenAt: asDate(row.lastSeenAt),
       createdAt: asDate(row.createdAt) ?? new Date(),
     };
-    await prisma.user.upsert({
-      where: { id: asString(row.id) },
-      create: { id: asString(row.id), ...data },
-      update: data,
-    });
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) {
+      await prisma.user.update({ where: { id: existing.id }, data });
+      userIds.set(asString(row.id), existing.id);
+    } else {
+      const created = await prisma.user.create({ data: { id: asString(row.id), ...data } });
+      userIds.set(asString(row.id), created.id);
+    }
   }
 
   for (const row of lessons) {
@@ -69,12 +74,10 @@ try {
     });
   }
 
-  const userIds = new Set(users.map((row) => asString(row.id)));
-
   for (const row of enrollments) {
-    const userId = row.userId ? asString(row.userId) : "";
+    const mappedUserId = row.userId ? userIds.get(asString(row.userId)) : "";
     const data = {
-      userId: userId && userIds.has(userId) ? userId : null,
+      userId: mappedUserId || null,
       courseSlug: asString(row.courseSlug),
       name: asString(row.name),
       phone: asString(row.phone),

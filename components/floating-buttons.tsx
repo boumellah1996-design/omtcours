@@ -10,7 +10,7 @@ export function FloatingButtons() {
   const admin = usePathname().startsWith("/admin");
 
   return (
-    <div className={admin ? "fixed bottom-5 right-5 z-30 flex flex-row gap-3" : "fixed bottom-5 end-5 z-30 flex flex-col gap-3"}>
+    <div className={admin ? "floating-contact fixed bottom-5 right-5 z-20 flex flex-row gap-3" : "floating-contact fixed bottom-5 end-5 z-20 flex flex-col gap-3"}>
       <a
         href={site.whatsappUrl}
         target="_blank"

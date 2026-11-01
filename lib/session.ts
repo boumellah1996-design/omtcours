@@ -1,4 +1,5 @@
 export const SESSION_COOKIE = "omt_session";
+export const AUTH_SECRET_DEFAULT = "omt-local-auth-secret-7f3c9a";
 
 export type SessionPayload = {
   sub: string;
@@ -10,7 +11,8 @@ export type SessionPayload = {
 const encoder = new TextEncoder();
 
 function secret() {
-  return process.env.AUTH_SECRET || "omt-auth-local";
+  const value = (process.env.AUTH_SECRET || AUTH_SECRET_DEFAULT).trim();
+  return value || AUTH_SECRET_DEFAULT;
 }
 
 function bytesToBase64Url(bytes: Uint8Array) {
@@ -51,9 +53,16 @@ export async function createSessionToken(user: { id: string; role: "admin" | "st
 
 export async function readSession(token: string | undefined): Promise<SessionPayload | null> {
   if (!token) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature || !same(signature, await sign(payload))) return null;
+  let value = token.trim();
   try {
+    value = decodeURIComponent(value);
+  } catch {
+    // keep original token
+  }
+  const [payload, signature] = value.split(".");
+  if (!payload || !signature) return null;
+  try {
+    if (!same(signature, await sign(payload))) return null;
     const parsed = JSON.parse(new TextDecoder().decode(base64UrlToBytes(payload))) as Partial<SessionPayload>;
     if (parsed.role !== "admin" && parsed.role !== "student") return null;
     if (typeof parsed.sub !== "string" || typeof parsed.exp !== "number" || parsed.exp < Date.now()) return null;
@@ -68,7 +77,7 @@ export function sessionCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   };

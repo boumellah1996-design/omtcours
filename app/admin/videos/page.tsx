@@ -1,5 +1,5 @@
-import { AdminVideos } from "@/components/admin-videos";
+import { redirect } from "next/navigation";
 
 export default function AdminVideosPage() {
-  return <AdminVideos />;
+  redirect("/admin/courses");
 }

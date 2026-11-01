@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { BunnyPlayer, isBunnyPlayerUrl } from "@/components/BunnyPlayer";
 import { useI18n } from "@/components/language-provider";
 import { useSessionGuard } from "@/components/session-watch";
 import { isCourseSlug, type CourseSlug } from "@/lib/courses";
@@ -99,7 +100,7 @@ export function LearnPlayer() {
           setNotice(t.learn.missingVideo);
           return;
         }
-        if (!response.ok || !data.embedUrl || !isBunnyEmbed(data.embedUrl)) {
+        if (!response.ok || !data.embedUrl || !isBunnyPlayerUrl(data.embedUrl)) {
           setEmbedUrl("");
           setNotice(t.learn.locked);
           return;
@@ -128,35 +129,29 @@ export function LearnPlayer() {
         <h1 className="mt-4 text-3xl font-black">{t.courses[slug].title}</h1>
         <div className="mt-4 grid gap-2">
           {lessons?.map((lesson) => (
-            <button
-              key={lesson.id}
-              type="button"
-              onClick={() => setActive(lesson.id)}
-              className={`rounded-2xl px-4 py-3 text-start text-sm font-extrabold ${active === lesson.id ? "bg-ink text-white" : "border border-black/10"}`}
-            >
-              {String(lesson.position).padStart(2, "0")}. {lesson.title}
-            </button>
+            <div key={lesson.id} className="grid gap-1">
+              <button
+                type="button"
+                onClick={() => setActive(lesson.id)}
+                className={`rounded-2xl px-4 py-3 text-start text-sm font-extrabold ${active === lesson.id ? "bg-ink text-white" : "border border-black/10"}`}
+              >
+                {String(lesson.position).padStart(2, "0")}. {lesson.title}
+              </button>
+              <Link href={`/lesson/${lesson.id}`} className="px-2 text-xs font-extrabold text-ink/60 underline-offset-4 hover:text-ink hover:underline">
+                {t.learn.open}
+              </Link>
+            </div>
           ))}
           {lessons && lessons.length === 0 && !denied ? <p className="text-sm font-bold text-ink/60">{t.admin.noLessons}</p> : null}
         </div>
       </aside>
-      <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white p-6">
+      <div className="relative z-10 isolate overflow-hidden rounded-[28px] border border-black/10 bg-white p-6">
         {ended ? <p className="text-sm font-bold leading-7">{t.login.replaced}</p> : null}
         {denied ? <p className="text-sm font-bold leading-7">{t.learn.locked}</p> : null}
         {embedUrl && !ended ? (
           <>
             <h2 className="mb-4 text-2xl font-bold">{activeLesson?.title ?? t.courses[slug].title}</h2>
-            <div className="relative overflow-hidden rounded-[20px] pt-[56.25%]">
-              <iframe
-                src={embedUrl}
-                title={activeLesson?.title ?? t.courses[slug].title}
-                loading="lazy"
-                className="absolute inset-0 h-full w-full border-0"
-                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-                allowFullScreen
-                referrerPolicy="origin"
-              />
-            </div>
+            <BunnyPlayer embedUrl={embedUrl} title={activeLesson?.title ?? t.courses[slug].title} fallback={t.learn.missingVideo} />
           </>
         ) : ended ? null : (
           <div className="grid min-h-64 place-items-center text-center text-sm font-bold leading-7 text-ink/70">{notice}</div>
@@ -166,14 +161,3 @@ export function LearnPlayer() {
   );
 }
 
-function isBunnyEmbed(url: string) {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.protocol === "https:" &&
-      (parsed.hostname === "iframe.mediadelivery.net" || parsed.hostname === "player.mediadelivery.net")
-    );
-  } catch {
-    return false;
-  }
-}

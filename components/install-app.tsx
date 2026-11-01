@@ -77,12 +77,14 @@ export function InstallProvider({ children }: { children: ReactNode }) {
     if (!open) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.dataset.modal = "open";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previous;
+      delete document.body.dataset.modal;
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -112,12 +114,12 @@ export function InstallProvider({ children }: { children: ReactNode }) {
     <InstallContext.Provider value={{ openPanel, installed }}>
       {children}
       {open ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/50 p-3 sm:items-center" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[90] isolate flex items-end justify-center bg-ink/55 p-3 backdrop-blur-[3px] sm:items-center" onClick={() => setOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            className="max-h-[92vh] w-full overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl sm:max-w-lg sm:p-7"
+            className="relative z-10 max-h-[92vh] w-full min-w-0 overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl sm:max-w-lg sm:p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">

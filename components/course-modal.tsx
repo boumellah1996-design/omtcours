@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
+import { BunnyPlayer, isBunnyPlayerUrl } from "@/components/BunnyPlayer";
 import { CartIcon, CloseIcon, PlayIcon } from "@/components/icons";
 import { useI18n } from "@/components/language-provider";
 import { TEASER_COUNT, TEASER_SECONDS, type CourseSlug } from "@/lib/courses";
@@ -38,9 +40,11 @@ export function CourseModal({
   const [method, setMethod] = useState<PaymentMethod | "">("");
   const [receipt, setReceipt] = useState<File | null>(null);
   const [captchaImage, setCaptchaImage] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [teasers, setTeasers] = useState<TeaserLesson[]>([]);
   const [teasersReady, setTeasersReady] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [activeTeaser, setActiveTeaser] = useState("");
   const playTeaser = useCallback((id: string) => setActiveTeaser(id), []);
   const stopTeaser = useCallback((id: string) => {
@@ -48,21 +52,25 @@ export function CourseModal({
   }, []);
 
   async function loadCaptcha() {
-    const response = await fetch("/api/captcha");
-    const data = (await response.json()) as { image?: string };
+    const response = await fetch("/api/captcha", { cache: "no-store", credentials: "include" });
+    const data = (await response.json()) as { image?: string; token?: string };
     setCaptchaImage(data.image ?? "");
+    setCaptchaToken(typeof data.token === "string" ? data.token : "");
     setCaptchaAnswer("");
   }
 
   useEffect(() => {
+    setMounted(true);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.body.dataset.modal = "open";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = previous;
+      delete document.body.dataset.modal;
       window.removeEventListener("keydown", onKey);
     };
   }, [onClose]);
@@ -113,7 +121,11 @@ export function CourseModal({
       setStatus({ kind: "error", code: "pledge_required" });
       return;
     }
-    if (captchaAnswer.trim().length < 5) {
+    const captcha = captchaAnswer
+      .normalize("NFKC")
+      .replace(/[\s\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]+/g, "")
+      .toUpperCase();
+    if (captcha.length < 5) {
       setStatus({ kind: "error", code: "invalid_captcha" });
       return;
     }
@@ -126,10 +138,11 @@ export function CourseModal({
       form.set("email", email);
       form.set("pledge", "true");
       form.set("paymentMethod", method);
-      form.set("captcha", captchaAnswer);
+      form.set("captcha", captcha);
+      if (captchaToken) form.set("captchaToken", captchaToken);
       if (receipt) form.set("receipt", receipt);
-      const response = await fetch("/api/enrollments", { method: "POST", body: form });
-      const data = (await response.json()) as { enrollment?: { id: string }; code?: string };
+      const response = await fetch("/api/enrollments", { method: "POST", body: form, credentials: "include" });
+      const data = (await response.json()) as { enrollment?: { id: string }; code?: string; message?: string };
       if (!response.ok || !data.enrollment) {
         setStatus({ kind: "error", code: data.code ?? "generic" });
         if (data.code === "invalid_captcha") void loadCaptcha();
@@ -137,18 +150,20 @@ export function CourseModal({
       }
       setStatus({ kind: "success", id: data.enrollment.id.slice(0, 8).toUpperCase() });
     } catch {
-      setStatus({ kind: "error", code: "generic" });
+      setStatus({ kind: "error", code: "save_failed" });
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
-      <button type="button" aria-label={t.modal.close} className="absolute inset-0 bg-ink/45 backdrop-blur-[2px]" onClick={onClose} />
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] isolate flex items-end justify-center sm:items-center sm:p-6">
+      <button type="button" aria-label={t.modal.close} className="absolute inset-0 bg-ink/55 backdrop-blur-[3px]" onClick={onClose} />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative max-h-[92vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-7 ${
+        className={`relative z-10 max-h-[92vh] w-full min-w-0 overflow-y-auto rounded-t-[28px] bg-white p-5 shadow-2xl sm:rounded-[28px] sm:p-7 ${
           view === "teasers" ? "sm:max-w-5xl" : "sm:max-w-3xl"
         }`}
       >
@@ -180,14 +195,14 @@ export function CourseModal({
         </div>
 
         {view === "choose" ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => {
                 setView("pay");
                 void loadCaptcha();
               }}
-              className="flex min-h-40 flex-col items-start rounded-[24px] bg-omt p-5 text-start transition hover:-translate-y-0.5"
+              className="flex min-h-40 min-w-0 flex-col items-start rounded-[24px] bg-omt p-5 text-start transition hover:-translate-y-0.5"
             >
               <span className="grid h-12 w-12 place-items-center rounded-2xl bg-ink text-omt">
                 <CartIcon className="h-6 w-6" />
@@ -198,7 +213,7 @@ export function CourseModal({
             <button
               type="button"
               onClick={() => setView("teasers")}
-              className="flex min-h-40 flex-col items-start rounded-[24px] border border-black/10 bg-white p-5 text-start transition hover:-translate-y-0.5 hover:border-black/30"
+              className="flex min-h-40 min-w-0 flex-col items-start rounded-[24px] border border-black/10 bg-white p-5 text-start transition hover:-translate-y-0.5 hover:border-black/30"
             >
               <span className="grid h-12 w-12 place-items-center rounded-2xl bg-omt text-ink">
                 <PlayIcon className="h-6 w-6" />
@@ -227,7 +242,7 @@ export function CourseModal({
                 {t.modal.back}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               {Array.from({ length: TEASER_COUNT }, (_, index) => {
                 const lesson = teasers[index] ?? null;
                 return (
@@ -274,7 +289,7 @@ export function CourseModal({
                 <p className="text-sm leading-6 text-muted">{t.modal.enrollLead}</p>
                 <fieldset className="grid gap-2">
                   <legend className="text-sm font-bold">{t.modal.method}</legend>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {(
                       [
                         ["baridi", t.modal.methodBaridi],
@@ -284,7 +299,7 @@ export function CourseModal({
                     ).map(([value, label]) => (
                       <label
                         key={value}
-                        className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold ${method === value ? "border-ink bg-omt" : "border-black/10"}`}
+                        className={`flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold ${method === value ? "border-ink bg-omt" : "border-black/10"}`}
                       >
                         <input
                           type="radio"
@@ -374,7 +389,14 @@ export function CourseModal({
                     {t.modal.captchaHint}
                     <input
                       value={captchaAnswer}
-                      onChange={(event) => setCaptchaAnswer(event.target.value)}
+                      onChange={(event) =>
+                        setCaptchaAnswer(
+                          event.target.value
+                            .normalize("NFKC")
+                            .replace(/[\s\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]+/g, "")
+                            .toUpperCase(),
+                        )
+                      }
                       autoComplete="off"
                       dir="ltr"
                       required
@@ -412,7 +434,8 @@ export function CourseModal({
           </Link>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -448,7 +471,7 @@ function TeaserTile({
       .then(async (response) => {
         const data = (await response.json()) as { embedUrl?: string };
         if (cancelled) return;
-        if (!response.ok || !data.embedUrl || !isBunnyEmbed(data.embedUrl)) {
+        if (!response.ok || !data.embedUrl || !isBunnyPlayerUrl(data.embedUrl)) {
           onStop(lessonId);
           return;
         }
@@ -469,17 +492,10 @@ function TeaserTile({
   }, [lessonId, onStop, playing, seconds]);
 
   return (
-    <figure className="overflow-hidden rounded-2xl bg-ink text-white">
+    <figure className="min-w-0 overflow-hidden rounded-2xl bg-ink text-white">
       <div className="relative aspect-video">
         {playing && embedUrl ? (
-          <iframe
-            src={embedUrl}
-            title={label}
-            className="h-full w-full border-0 bg-black"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowFullScreen
-            referrerPolicy="origin"
-          />
+          <BunnyPlayer embedUrl={embedUrl} title={label} className="rounded-none shadow-none" />
         ) : lesson ? (
           <button
             type="button"
@@ -507,14 +523,3 @@ function TeaserTile({
   );
 }
 
-function isBunnyEmbed(url: string) {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.protocol === "https:" &&
-      (parsed.hostname === "iframe.mediadelivery.net" || parsed.hostname === "player.mediadelivery.net")
-    );
-  } catch {
-    return false;
-  }
-}

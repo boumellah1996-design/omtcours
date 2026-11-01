@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { PhoneCascade } from "@/components/phone-cascade";
 import { useI18n } from "@/components/language-provider";
 import { academyPhotos } from "@/lib/site";
 
@@ -13,7 +14,8 @@ export function Hero() {
   const photos = academyPhotos.filter((photo) => !hidden.includes(photo.src));
 
   return (
-    <section id="top" className="relative">
+    <section id="top" className="relative overflow-hidden">
+      <PhoneCascade />
       <div className="hero-wash pointer-events-none absolute inset-0 z-0" />
       <div className="relative z-[2] mx-auto max-w-6xl px-5 pt-14 text-center sm:pt-20">
         <p className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-1.5 text-sm font-bold shadow-sm">

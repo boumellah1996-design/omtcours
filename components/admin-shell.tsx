@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { LanguageMenu } from "@/components/language-menu";
 import { useI18n } from "@/components/language-provider";
 
 const links = [
   { href: "/admin", key: "overview" },
-  { href: "/admin/videos", key: "videos" },
   { href: "/admin/courses", key: "courses" },
   { href: "/admin/enrollments", key: "enrollments" },
   { href: "/admin/students", key: "registered" },
@@ -59,14 +58,6 @@ function NavIcon({ name }: { name: LinkKey | "logout" }) {
       </svg>
     );
   }
-  if (name === "videos") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
-        <path d="M10 9.5v5l4.5-2.5L10 9.5Z" fill="currentColor" stroke="none" />
-      </svg>
-    );
-  }
   if (name === "courses") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" className={common} fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -104,10 +95,8 @@ function NavIcon({ name }: { name: LinkKey | "logout" }) {
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const pathname = usePathname();
-  const router = useRouter();
   const labels: Record<LinkKey, string> = {
     overview: t.admin.overview,
-    videos: t.admin.videos,
     courses: t.admin.courses,
     enrollments: t.admin.enrollments,
     registered: t.admin.registered,
@@ -119,7 +108,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <p className="px-5 pb-2 pt-5 text-lg font-black tracking-tight">OMT</p>
         <nav className="grid gap-1 px-3 py-2">
           {links.map((link) => {
-            const active = pathname === link.href;
+            const active = link.href === "/admin" ? pathname === "/admin" : pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.href}
@@ -141,9 +130,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => {
-              void fetch("/api/auth/logout", { method: "POST" }).then(() => {
-                router.push("/login");
-                router.refresh();
+              void fetch("/api/auth/logout", { method: "POST", credentials: "include" }).finally(() => {
+                window.location.assign("/login");
               });
             }}
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#e6edf3] hover:bg-white/[0.06]"
@@ -153,7 +141,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <div dir="rtl" className="relative min-w-0 overflow-hidden">
+      <div dir="rtl" className="relative z-0 min-w-0 overflow-x-clip">
         <ChartBackdrop />
         <div className="relative flex items-center gap-2.5 px-6 pt-5">
           <ManagerAvatar />

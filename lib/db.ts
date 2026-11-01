@@ -1,40 +1,81 @@
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import { PrismaClient } from "@prisma/client";
 
-function firstEnv(...keys: string[]) {
-  for (const key of keys) {
-    const value = process.env[key]?.trim();
-    if (value) return value;
+function envFileValue(key: string) {
+  try {
+    const path = join(process.cwd(), ".env");
+    if (!existsSync(path)) return "";
+    const line = readFileSync(path, "utf8")
+      .split(/\r?\n/)
+      .find((item) => item.trim().startsWith(`${key}=`));
+    if (!line) return "";
+    let value = line.slice(line.indexOf("=") + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    return value.trim();
+  } catch {
+    return "";
   }
-  return "";
+}
+
+function firstEnv(...keys: string[]) {
+  const values = keys.map((key) => (envFileValue(key) || process.env[key] || "").trim());
+  return values.find((value) => value.startsWith("postgres")) || values.find(Boolean) || "";
+}
+
+function normalizePostgresUrl(url: string, kind: "pooled" | "direct") {
+  const parsed = new URL(url);
+  if (kind === "direct") parsed.hostname = parsed.hostname.replace("-pooler", "");
+  parsed.searchParams.delete("channel_binding");
+  if (kind === "direct") parsed.searchParams.delete("pgbouncer");
+  if (kind === "pooled" && parsed.hostname.includes("-pooler")) {
+    parsed.searchParams.set("pgbouncer", "true");
+  }
+  if (kind === "pooled") {
+    if (!parsed.searchParams.has("connection_limit")) parsed.searchParams.set("connection_limit", "5");
+    if (!parsed.searchParams.has("pool_timeout")) parsed.searchParams.set("pool_timeout", "20");
+    if (!parsed.searchParams.has("connect_timeout")) parsed.searchParams.set("connect_timeout", "15");
+  }
+  parsed.searchParams.set("sslmode", "require");
+  return parsed.toString();
 }
 
 export function resolveDatabaseUrl() {
   const url = firstEnv(
     "DATABASE_URL",
     "POSTGRES_PRISMA_URL",
-    "POSTGRES_URL_NON_POOLING",
     "POSTGRES_URL",
+    "POSTGRES_URL_NON_POOLING",
     "DATABASE_URL_UNPOOLED",
+    "DIRECT_URL",
   );
   if (!url) {
     throw new Error(
-      "DATABASE_URL is missing. Set the same persistent Postgres URL in local .env and in Vercel project settings.",
+      "DATABASE_URL is missing. Set the same Neon Postgres URL in local .env and in Vercel project settings.",
     );
   }
   if (url.startsWith("file:")) {
     throw new Error(
-      "SQLite file URLs are not supported. Use one cloud Postgres DATABASE_URL for both local and Vercel.",
+      "SQLite file URLs are not supported. Use one Neon Postgres DATABASE_URL for both local and Vercel.",
     );
   }
   try {
-    const parsed = new URL(url);
-    if (parsed.hostname.includes("-pooler") && !parsed.searchParams.has("pgbouncer")) {
-      parsed.searchParams.set("pgbouncer", "true");
-    }
-    if (parsed.protocol.startsWith("postgres") && !parsed.searchParams.has("sslmode")) {
-      parsed.searchParams.set("sslmode", "require");
-    }
-    return parsed.toString();
+    return normalizePostgresUrl(url, "pooled");
+  } catch {
+    return url;
+  }
+}
+
+export function resolveDirectUrl() {
+  const url = firstEnv("DIRECT_URL", "DATABASE_URL_UNPOOLED", "POSTGRES_URL_NON_POOLING", "DATABASE_URL");
+  if (!url) return resolveDatabaseUrl();
+  try {
+    return normalizePostgresUrl(url, "direct");
   } catch {
     return url;
   }
@@ -51,58 +92,9 @@ export const prisma =
 
 globalForPrisma.prisma = prisma;
 
-const schemaStatements = [
-  `CREATE TABLE IF NOT EXISTS "User" (
-    "id" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "phone" TEXT,
-    "name" TEXT NOT NULL,
-    "passwordHash" TEXT NOT NULL,
-    "loginCode" TEXT NOT NULL DEFAULT '',
-    "deviceCount" INTEGER NOT NULL DEFAULT 0,
-    "role" TEXT NOT NULL,
-    "activeSessionId" TEXT NOT NULL DEFAULT '',
-    "lastSeenAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-  )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email")`,
-  `CREATE TABLE IF NOT EXISTS "Enrollment" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT,
-    "courseSlug" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "phone" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
-    "note" TEXT NOT NULL,
-    "paymentMethod" TEXT NOT NULL DEFAULT '',
-    "receiptExt" TEXT NOT NULL DEFAULT '',
-    "status" TEXT NOT NULL DEFAULT 'pending_payment',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "activatedAt" TIMESTAMP(3),
-    CONSTRAINT "Enrollment_pkey" PRIMARY KEY ("id")
-  )`,
-  `CREATE INDEX IF NOT EXISTS "Enrollment_userId_idx" ON "Enrollment"("userId")`,
-  `CREATE INDEX IF NOT EXISTS "Enrollment_courseSlug_idx" ON "Enrollment"("courseSlug")`,
-  `CREATE TABLE IF NOT EXISTS "Lesson" (
-    "id" TEXT NOT NULL,
-    "courseSlug" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "bunnyVideoId" TEXT NOT NULL,
-    "position" INTEGER NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Lesson_pkey" PRIMARY KEY ("id")
-  )`,
-  `CREATE INDEX IF NOT EXISTS "Lesson_courseSlug_position_idx" ON "Lesson"("courseSlug", "position")`,
-];
-
 export async function ensureDatabase() {
   if (!globalForPrisma.omtSchema) {
-    globalForPrisma.omtSchema = (async () => {
-      for (const statement of schemaStatements) {
-        await prisma.$executeRawUnsafe(statement);
-      }
-    })().catch((error) => {
+    globalForPrisma.omtSchema = prisma.$queryRaw`SELECT 1`.then(() => undefined).catch((error) => {
       globalForPrisma.omtSchema = undefined;
       throw error;
     });

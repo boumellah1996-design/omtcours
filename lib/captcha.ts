@@ -51,7 +51,16 @@ function mac(payload: string, answer: string) {
 }
 
 function normalize(value: string) {
-  return value.trim().toUpperCase().replace(/\s+/g, "");
+  return value
+    .normalize("NFKC")
+    .replace(/[\s\u00A0\u1680\u2000-\u200D\u202F\u205F\u3000\uFEFF]+/g, "")
+    .toUpperCase();
+}
+
+function asText(value: unknown) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
 function crc32(data: Buffer) {
@@ -179,8 +188,12 @@ function image(answer: string) {
   return `data:image/png;base64,${png(WIDTH, HEIGHT, pixels).toString("base64")}`;
 }
 
+export function normalizeCaptcha(value: unknown) {
+  return normalize(asText(value));
+}
+
 export function issueCaptcha() {
-  const answer = [...randomBytes(5)].map((byte) => ALPHABET[byte % ALPHABET.length]).join("");
+  const answer = normalize([...randomBytes(5)].map((byte) => ALPHABET[byte % ALPHABET.length]).join(""));
   const payload = Buffer.from(
     JSON.stringify({ exp: Date.now() + TTL_MS, n: randomBytes(8).toString("base64url") }),
   ).toString("base64url");
@@ -191,7 +204,8 @@ export function issueCaptcha() {
 }
 
 export function captchaMatches(token: string | undefined, guess: unknown) {
-  if (!token || typeof guess !== "string") return false;
+  const answer = normalizeCaptcha(guess);
+  if (!token || !answer) return false;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return false;
 
@@ -204,7 +218,7 @@ export function captchaMatches(token: string | undefined, guess: unknown) {
   }
   if (exp < Date.now()) return false;
 
-  const expected = mac(payload, normalize(guess));
+  const expected = mac(payload, answer);
   const left = Buffer.from(signature);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);

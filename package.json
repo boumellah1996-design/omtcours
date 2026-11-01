@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "postinstall": "node scripts/prisma-generate.mjs",
-    "build": "node scripts/prisma-generate.mjs && node scripts/prepare-db.mjs && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "db:push": "prisma db push",
+    "db:generate": "node scripts/prisma-generate.mjs",
+    "db:migrate": "node scripts/run-prisma.mjs migrate deploy",
     "db:import-local": "node scripts/import-sqlite.mjs",
     "seed:admin": "node scripts/seed-admin.mjs"
   },

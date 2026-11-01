@@ -12,14 +12,14 @@ npm run dev
 
 - رقم الواتساب ورابط تيليغرام وصورة الأكاديمية: `lib/site.ts`
 - ضع صورة المدرسة في `public/academy.jpg` ثم اجعل `academyImage` يساوي `"/academy.jpg"`
-- المقتطفات التشويقية (حتى 15 مقطعاً لكل دورة): تُؤخذ من فيديوهات الدورة المضافة في `/admin/videos`
+- المقتطفات التشويقية (حتى 15 مقطعاً لكل دورة): تُؤخذ من دروس الدورة المضافة في `/admin/courses`
 - نصوص الواجهة بالعربي والفرنسي والإنجليزي والإسباني: `lib/i18n.ts`
 
-البيانات (الطلبات، الدروس، والحسابات) تُحفظ في Postgres عبر `DATABASE_URL`.
-يجب أن تكون نفس القيمة في ملف `.env` المحلي وفي Vercel → Settings → Environment Variables.
-SQLite (`file:...`) لا يبقى على Vercel لأن الملفات تُمسح مع كل نشر.
+البيانات (الطلبات، الدروس، والحسابات) تُحفظ في Neon Postgres.
+ضع نفس `DATABASE_URL` (pooler) و `DIRECT_URL` (بدون `-pooler`) في `.env` وفي Vercel.
 
 ```bash
-npx prisma db push
+npm run db:migrate
+npm run seed:admin
 npm run db:import-local
 ```

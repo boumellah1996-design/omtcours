@@ -60,8 +60,8 @@ export function LanguageMenu({ tone = "light" }: { tone?: "light" | "dark" }) {
           aria-label={current.label}
           className={
             tone === "dark"
-              ? "absolute bottom-full start-0 z-50 mb-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#161b22] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
-              : "absolute end-0 z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-black/10 bg-white p-1.5 shadow-[0_16px_40px_rgba(17,17,17,0.12)]"
+              ? "absolute bottom-full start-0 z-[80] mb-2 w-full overflow-hidden rounded-xl border border-white/10 bg-[#161b22] p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+              : "absolute end-0 z-[80] mt-2 w-44 overflow-hidden rounded-2xl border border-black/10 bg-white p-1.5 shadow-[0_16px_40px_rgba(17,17,17,0.12)]"
           }
         >
           {locales.map((item) => {

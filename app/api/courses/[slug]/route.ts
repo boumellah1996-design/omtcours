@@ -10,7 +10,13 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
     return NextResponse.json({ ok: false, code: "not_found" }, { status: 404 });
   }
 
-  const teasers = await listCourseTeasers(slug);
+  let teasers;
+  try {
+    teasers = await listCourseTeasers(slug);
+  } catch (error) {
+    console.error("course teasers failed", error);
+    return NextResponse.json({ ok: false, code: "db_unavailable", message: "Course teasers are unavailable." }, { status: 503 });
+  }
 
   return NextResponse.json(
     {

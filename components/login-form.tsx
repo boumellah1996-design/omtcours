@@ -2,12 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useI18n } from "@/components/language-provider";
 
 export function LoginForm() {
   const { t } = useI18n();
-  const router = useRouter();
   const search = useSearchParams();
   const nextPath = search.get("next");
   const replaced = search.get("reason") === "replaced";
@@ -36,8 +35,7 @@ export function LoginForm() {
         setMessage(data.code === "invalid" ? t.login.failed : t.login.notConfigured);
         return;
       }
-      router.push(data.next || "/learn");
-      router.refresh();
+      window.location.assign(data.next || "/learn");
     } catch {
       setMessage(t.login.notConfigured);
     } finally {

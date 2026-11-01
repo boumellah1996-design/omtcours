@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useI18n } from "@/components/language-provider";
-import { TEASER_COUNT, courseCatalog, type CourseSlug } from "@/lib/courses";
+import { courseCatalog } from "@/lib/courses";
 import type { EnrollmentRecord } from "@/lib/enrollment-types";
-
-type CourseTeaserRow = { slug: CourseSlug; teasers: { id: string }[] };
 
 type LoadState =
   | { kind: "loading" }
@@ -82,61 +80,6 @@ export function AdminOverview() {
       <div className="mt-6 rounded-[24px] border border-black/10 bg-white p-5">
         <h2 className="text-lg font-black">{t.admin.recent}</h2>
         <EnrollmentBody state={state} recent={recent} onChanged={reload} />
-      </div>
-    </section>
-  );
-}
-
-export function AdminCourses() {
-  const { t } = useI18n();
-  const [rows, setRows] = useState<CourseTeaserRow[] | null>(null);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      fetch("/api/courses", { cache: "no-store" })
-        .then(async (response) => {
-          if (!response.ok) throw new Error("failed");
-          const data = (await response.json()) as { courses?: CourseTeaserRow[] };
-          setRows(data.courses ?? []);
-        })
-        .catch(() => setRows([]));
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  return (
-    <section>
-      <h1 className="text-4xl font-black tracking-tight">{t.admin.courses}</h1>
-      <div className="mt-6 grid gap-4">
-        {courseCatalog.map((course) => {
-          const teasers = rows?.find((row) => row.slug === course.slug)?.teasers ?? [];
-          const filled = teasers.length;
-          return (
-            <article key={course.slug} className="rounded-[24px] border border-black/10 bg-white p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-black">{t.courses[course.slug].title}</h2>
-                <span className="rounded-full bg-omt px-3 py-1 text-xs font-black">
-                  {rows ? `${filled}/${TEASER_COUNT}` : "..."}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-muted">{t.admin.teaserSlots}</p>
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {Array.from({ length: TEASER_COUNT }, (_, index) => {
-                  const ready = Boolean(teasers[index]);
-                  return (
-                    <div
-                      key={index}
-                      className={`rounded-xl px-2 py-3 text-center text-xs font-bold ${ready ? "bg-ink text-white" : "bg-[#f4f4f4] text-ink/60"}`}
-                    >
-                      {String(index + 1).padStart(2, "0")}
-                      <span className="mt-1 block font-semibold">{ready ? "0:15" : t.admin.waitingUpload}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </article>
-          );
-        })}
       </div>
     </section>
   );

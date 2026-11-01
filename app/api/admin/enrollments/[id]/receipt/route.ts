@@ -1,34 +1,47 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/access";
 import { prisma } from "@/lib/db";
-import { receiptType } from "@/lib/receipt";
+import { readReceiptFile, receiptType } from "@/lib/receipt";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   if (!(await requireAdmin())) {
-    return NextResponse.json({ ok: false, code: "AUTH_REQUIRED" }, { status: 401 });
+    return NextResponse.json({ ok: false, code: "AUTH_REQUIRED", message: "Admin only." }, { status: 401 });
   }
   const { id } = await context.params;
   if (!/^[\w-]{8,40}$/.test(id)) {
-    return NextResponse.json({ ok: false, code: "generic" }, { status: 404 });
+    return NextResponse.json({ ok: false, code: "not_found", message: "Receipt not found." }, { status: 404 });
   }
-  const enrollment = await prisma.enrollment.findUnique({ where: { id }, select: { receiptExt: true } });
-  const type = receiptType(enrollment?.receiptExt ?? "");
-  if (!enrollment || !type) {
-    return NextResponse.json({ ok: false, code: "generic" }, { status: 404 });
-  }
+
+  let receiptExt = "";
+  let receiptBytes: Uint8Array | null = null;
   try {
-    const bytes = await readFile(path.join(process.cwd(), "data", "receipts", `${id}.${enrollment.receiptExt}`));
-    return new NextResponse(bytes, {
-      headers: {
-        "Content-Type": type,
-        "Content-Disposition": "inline",
-        "Cache-Control": "private, no-store",
-        "X-Content-Type-Options": "nosniff",
-      },
+    const row = await prisma.enrollment.findUnique({
+      where: { id },
+      select: { receiptExt: true, receiptBytes: true },
     });
+    receiptExt = row?.receiptExt ?? "";
+    if (row?.receiptBytes) receiptBytes = row.receiptBytes;
   } catch {
-    return NextResponse.json({ ok: false, code: "generic" }, { status: 404 });
+    const row = await prisma.enrollment.findUnique({ where: { id }, select: { receiptExt: true } });
+    receiptExt = row?.receiptExt ?? "";
   }
+
+  const type = receiptType(receiptExt);
+  if (!type) {
+    return NextResponse.json({ ok: false, code: "not_found", message: "Receipt not found." }, { status: 404 });
+  }
+
+  const bytes = receiptBytes ?? (await readReceiptFile(id, receiptExt));
+  if (!bytes) {
+    return NextResponse.json({ ok: false, code: "not_found", message: "Receipt file is missing." }, { status: 404 });
+  }
+
+  return new NextResponse(Buffer.from(bytes), {
+    headers: {
+      "Content-Type": type,
+      "Content-Disposition": "inline",
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }

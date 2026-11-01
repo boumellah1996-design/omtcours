@@ -20,6 +20,11 @@ body {
   background: #fff;
 }
 
+body[data-modal="open"] .floating-contact {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 ::selection {
   color: #111;
   background: #ffe500;

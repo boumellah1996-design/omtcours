@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -20,6 +21,9 @@ model User {
   lastSeenAt      DateTime?
   createdAt       DateTime     @default(now())
   enrollments     Enrollment[]
+
+  @@index([phone])
+  @@index([loginCode])
 }
 
 model Enrollment {
@@ -32,13 +36,17 @@ model Enrollment {
   note          String
   paymentMethod String    @default("")
   receiptExt    String    @default("")
+  receiptBytes  Bytes?
   status        String    @default("pending_payment")
   createdAt     DateTime  @default(now())
   activatedAt   DateTime?
-  user          User?     @relation(fields: [userId], references: [id])
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([userId])
   @@index([courseSlug])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
 }
 
 model Lesson {

@@ -1,11 +1,10 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+import { Prisma } from "@prisma/client";
 import { isCourseSlug } from "@/lib/courses";
-import { prisma } from "@/lib/db";
+import { ensureDatabase, prisma } from "@/lib/db";
 import type { EnrollmentInput, EnrollmentRecord } from "@/lib/enrollment-types";
 import { hashPassword, temporaryPassword } from "@/lib/password";
 import { isPaymentMethod } from "@/lib/payments";
-import type { ReceiptExt } from "@/lib/receipt";
+import { saveReceiptFile, type ReceiptExt } from "@/lib/receipt";
 
 export type { EnrollmentInput, EnrollmentRecord };
 
@@ -131,28 +130,78 @@ export async function listEnrollments() {
   return records;
 }
 
+export class EnrollmentSaveError extends Error {
+  code: "db_unavailable" | "save_failed";
+  constructor(code: "db_unavailable" | "save_failed", message: string, cause?: unknown) {
+    super(message, { cause });
+    this.name = "EnrollmentSaveError";
+    this.code = code;
+  }
+}
+
+function mapEnrollmentError(error: unknown) {
+  if (error instanceof EnrollmentSaveError) return error;
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return new EnrollmentSaveError("db_unavailable", "Could not connect to the enrollment database.", error);
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P1001" || error.code === "P1002" || error.code === "P1017" || error.code === "P2021") {
+      return new EnrollmentSaveError("db_unavailable", "The enrollment database is not ready.", error);
+    }
+    return new EnrollmentSaveError("save_failed", "The enrollment could not be saved.", error);
+  }
+  if (
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientRustPanicError ||
+    error instanceof Prisma.PrismaClientValidationError
+  ) {
+    return new EnrollmentSaveError("save_failed", "The enrollment could not be saved.", error);
+  }
+  return new EnrollmentSaveError("save_failed", "The enrollment could not be saved.", error);
+}
+
 export async function createEnrollment(input: EnrollmentInput, receipt?: { bytes: Uint8Array; ext: ReceiptExt }) {
-  const row = await prisma.enrollment.create({
-    data: {
-      courseSlug: input.courseSlug,
-      name: input.name,
-      phone: input.phone,
-      email: input.email,
-      note: input.note,
-      paymentMethod: input.paymentMethod,
-      receiptExt: receipt?.ext ?? "",
-      status: "pending_payment",
-    },
-  });
+  try {
+    await ensureDatabase();
+  } catch (error) {
+    throw mapEnrollmentError(error);
+  }
+  const data = {
+    courseSlug: input.courseSlug,
+    name: input.name.trim().slice(0, 80),
+    phone: input.phone.trim().slice(0, 32),
+    email: input.email.trim().slice(0, 120),
+    note: input.note,
+    paymentMethod: input.paymentMethod,
+    receiptExt: receipt?.ext ?? "",
+    status: "pending_payment",
+  };
+
+  let row: Awaited<ReturnType<typeof prisma.enrollment.create>>;
+  try {
+    row = await prisma.enrollment.create({
+      data: receipt ? { ...data, receiptBytes: Buffer.from(receipt.bytes) } : data,
+    });
+  } catch (error) {
+    try {
+      row = await prisma.enrollment.create({ data });
+    } catch (retry) {
+      throw mapEnrollmentError(retry ?? error);
+    }
+  }
+
   if (receipt) {
-    const dir = path.join(process.cwd(), "data", "receipts");
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, `${row.id}.${receipt.ext}`), receipt.bytes);
+    try {
+      await saveReceiptFile(row.id, receipt);
+    } catch (error) {
+      console.error("receipt file store failed", error);
+    }
   }
   return toRecord(row);
 }
 
 export async function activateEnrollment(id: string) {
+  await ensureDatabase();
   const enrollment = await prisma.enrollment.findUnique({ where: { id } });
   if (!enrollment || !isCourseSlug(enrollment.courseSlug)) return null;
 
@@ -205,7 +254,7 @@ export async function activateEnrollment(id: string) {
 export function validateEnrollment(
   body: unknown,
 ): { ok: true; value: EnrollmentInput } | { ok: false; code: string } {
-  if (!body || typeof body !== "object") return { ok: false, code: "generic" };
+  if (!body || typeof body !== "object") return { ok: false, code: "invalid_form" };
 
   const record = body as Record<string, unknown>;
   const courseSlug = record.courseSlug;

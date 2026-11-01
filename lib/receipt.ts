@@ -1,3 +1,7 @@
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+
 export const RECEIPT_MAX_BYTES = 4 * 1024 * 1024;
 
 export type ReceiptExt = "jpg" | "png" | "webp" | "pdf";
@@ -28,4 +32,32 @@ export function receiptType(ext: string) {
   if (ext === "webp") return "image/webp";
   if (ext === "pdf") return "application/pdf";
   return "";
+}
+
+function receiptDirs() {
+  return [path.join(process.cwd(), "data", "receipts"), path.join(tmpdir(), "omt-receipts")];
+}
+
+export async function saveReceiptFile(id: string, receipt: { bytes: Uint8Array; ext: ReceiptExt }) {
+  for (const dir of receiptDirs()) {
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(path.join(dir, `${id}.${receipt.ext}`), receipt.bytes);
+      return true;
+    } catch {
+      // Vercel and other hosts may block the app directory; try the next location.
+    }
+  }
+  return false;
+}
+
+export async function readReceiptFile(id: string, ext: string) {
+  for (const dir of receiptDirs()) {
+    try {
+      return await readFile(path.join(dir, `${id}.${ext}`));
+    } catch {
+      // keep looking
+    }
+  }
+  return null;
 }

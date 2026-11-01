@@ -10,11 +10,15 @@ export async function hashPassword(password: string) {
 }
 
 export async function passwordMatches(password: string, stored: string) {
-  const [kind, salt, encoded] = stored.split("$");
-  if (kind !== "scrypt" || !salt || !encoded) return false;
-  const hash = (await scryptAsync(password, salt, 32)) as Buffer;
-  const expected = Buffer.from(encoded, "base64url");
-  return hash.length === expected.length && timingSafeEqual(hash, expected);
+  try {
+    const [kind, salt, encoded] = stored.split("$");
+    if (kind !== "scrypt" || !salt || !encoded) return false;
+    const hash = (await scryptAsync(password, salt, 32)) as Buffer;
+    const expected = Buffer.from(encoded, "base64url");
+    return hash.length === expected.length && timingSafeEqual(hash, expected);
+  } catch {
+    return false;
+  }
 }
 
 export function temporaryPassword() {

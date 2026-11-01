@@ -109,6 +109,9 @@ export type Dictionary = {
       invalid_captcha: string;
       invalid_method: string;
       invalid_receipt: string;
+      invalid_form: string;
+      db_unavailable: string;
+      save_failed: string;
       generic: string;
     };
   };
@@ -223,6 +226,9 @@ export type Dictionary = {
     noLessons: string;
     bunnyHint: string;
     videosLead: string;
+    coursesLead: string;
+    bunnyReady: string;
+    bunnyMissing: string;
     videoLink: string;
     videoInvalid: string;
     edit: string;
@@ -390,6 +396,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid_captcha: "رمز Get Captcha غير صحيح. اطلب رمزاً جديداً.",
         invalid_method: "اختر طريقة الدفع.",
         invalid_receipt: "أرفق صورة وصل واضحة بصيغة صورة أو PDF.",
+        invalid_form: "تعذر قراءة نموذج الطلب. حدّث الصفحة وحاول مرة أخرى.",
+        db_unavailable: "قاعدة البيانات غير متاحة حالياً. حاول بعد لحظات.",
+        save_failed: "تعذر حفظ طلب الاشتراك في قاعدة البيانات.",
         generic: "تعذر إرسال الطلب. حاول مرة أخرى.",
       },
     },
@@ -451,7 +460,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       preview: "فعّل اشتراك المتدرب بعد تأكيد الدفع. المشاهدة تبقى مغلقة حتى التفعيل.",
       manager: "المدير العام",
       overview: "نظرة عامة",
-      courses: "الدورات",
+      courses: "الدورات والفيديوهات",
       videos: "الفيديوهات",
       enrollments: "طلبات الاشتراك",
       registered: "المسجلون",
@@ -504,6 +513,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
       noLessons: "لا توجد دروس بعد.",
       bunnyHint: "ضع BUNNY_LIBRARY_ID و BUNNY_TOKEN_KEY في الخادم، وفعّل Embed token في مكتبة Bunny. لا يُرسل رابط التحميل إلى المتصفح.",
       videosLead: "أضف دروس كل دورة، ثم عدّل العنوان أو رابط Bunny، أو احذف الدرس.",
+      coursesLead: "أدر دروس كل دورة ومقتطفاتها من مكان واحد. الصق رابط Bunny أو معرّف الفيديو مع عنوان الدرس.",
+      bunnyReady: "مصادقة Bunny مفعّلة. يتم توقيع التضمين على الخادم ولا يُرسل رابط التحميل.",
+      bunnyMissing: "Bunny غير مضبوط. ضع BUNNY_LIBRARY_ID و BUNNY_TOKEN_KEY في الخادم.",
       videoLink: "رابط Bunny أو معرّف الفيديو",
       videoInvalid: "استخدم رابط التضمين من Bunny أو معرّف الفيديو. رابط التحميل لا يُقبل.",
       edit: "تعديل",
@@ -685,6 +697,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid_captcha: "Le code Get Captcha est incorrect. Demandez-en un nouveau.",
         invalid_method: "Choisissez un mode de paiement.",
         invalid_receipt: "Joignez une photo nette du reçu, en image ou en PDF.",
+        invalid_form: "Le formulaire n'a pas pu être lu. Actualisez et réessayez.",
+        db_unavailable: "La base de données est indisponible. Réessayez dans un instant.",
+        save_failed: "L'enregistrement de la demande a échoué.",
         generic: "Envoi impossible. Réessayez.",
       },
     },
@@ -743,7 +758,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       preview: "Activez l'inscription après confirmation du paiement. La lecture reste fermée jusque-là.",
       manager: "Directeur général",
       overview: "Aperçu",
-      courses: "Cours",
+      courses: "Cours et vidéos",
       videos: "Vidéos",
       enrollments: "Inscriptions",
       registered: "Inscrits",
@@ -796,6 +811,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
       noLessons: "Aucune leçon pour le moment.",
       bunnyHint: "Ajoutez BUNNY_LIBRARY_ID et BUNNY_TOKEN_KEY sur le serveur, et activez le jeton d'intégration Bunny. Aucun lien de téléchargement n'est envoyé au navigateur.",
       videosLead: "Ajoutez les leçons de chaque cours, puis modifiez le titre, le lien Bunny, ou supprimez la leçon.",
+      coursesLead: "Gérez les leçons et les extraits de chaque cours au même endroit. Collez un lien Bunny ou un identifiant avec le titre.",
+      bunnyReady: "L'authentification Bunny est active. L'intégration est signée sur le serveur, sans lien de téléchargement.",
+      bunnyMissing: "Bunny n'est pas configuré. Ajoutez BUNNY_LIBRARY_ID et BUNNY_TOKEN_KEY sur le serveur.",
       videoLink: "Lien Bunny ou identifiant",
       videoInvalid: "Utilisez le lien d'intégration Bunny ou l'identifiant. Un lien de téléchargement est refusé.",
       edit: "Modifier",
@@ -977,6 +995,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid_captcha: "The Get Captcha code is wrong. Request a new one.",
         invalid_method: "Choose a payment method.",
         invalid_receipt: "Attach a clear receipt as an image or a PDF.",
+        invalid_form: "The form could not be read. Refresh and try again.",
+        db_unavailable: "The database is unavailable right now. Try again in a moment.",
+        save_failed: "The enrollment request could not be saved.",
         generic: "The request could not be sent. Try again.",
       },
     },
@@ -1035,7 +1056,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       preview: "Activate a trainee after payment is confirmed. Watching stays closed until then.",
       manager: "General manager",
       overview: "Overview",
-      courses: "Courses",
+      courses: "Courses & videos",
       videos: "Videos",
       enrollments: "Enrollments",
       registered: "Registered",
@@ -1088,6 +1109,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
       noLessons: "No lessons yet.",
       bunnyHint: "Set BUNNY_LIBRARY_ID and BUNNY_TOKEN_KEY on the server, and turn on Bunny embed token authentication. No download link is sent to the browser.",
       videosLead: "Add each course lesson, then edit the title, the Bunny link, or delete the lesson.",
+      coursesLead: "Manage each course’s lessons and teaser slots in one place. Paste a Bunny link or video id with the lesson title.",
+      bunnyReady: "Bunny token auth is active. Embeds are signed on the server. No download link is sent.",
+      bunnyMissing: "Bunny is not configured. Set BUNNY_LIBRARY_ID and BUNNY_TOKEN_KEY on the server.",
       videoLink: "Bunny link or video id",
       videoInvalid: "Use the Bunny embed link or the video id. A download link is rejected.",
       edit: "Edit",
@@ -1269,6 +1293,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
         invalid_captcha: "El código Get Captcha no es correcto. Pide uno nuevo.",
         invalid_method: "Elige una forma de pago.",
         invalid_receipt: "Adjunta una foto clara del recibo, en imagen o PDF.",
+        invalid_form: "No se pudo leer el formulario. Actualiza e inténtalo de nuevo.",
+        db_unavailable: "La base de datos no está disponible. Inténtalo en un momento.",
+        save_failed: "No se pudo guardar la solicitud de inscripción.",
         generic: "No se pudo enviar. Inténtalo de nuevo.",
       },
     },
@@ -1327,7 +1354,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
       preview: "Activa la inscripción después de confirmar el pago. La reproducción sigue cerrada hasta entonces.",
       manager: "Director general",
       overview: "Resumen",
-      courses: "Cursos",
+      courses: "Cursos y vídeos",
       videos: "Vídeos",
       enrollments: "Inscripciones",
       registered: "Inscritos",
@@ -1380,6 +1407,9 @@ export const dictionaries: Record<Locale, Dictionary> = {
       noLessons: "Todavía no hay lecciones.",
       bunnyHint: "Pon BUNNY_LIBRARY_ID y BUNNY_TOKEN_KEY en el servidor, y activa el token de inserción de Bunny. No se envía ningún enlace de descarga al navegador.",
       videosLead: "Añade las lecciones de cada curso, luego edita el título, el enlace de Bunny, o elimina la lección.",
+      coursesLead: "Gestiona las lecciones y los avances de cada curso en un solo lugar. Pega un enlace de Bunny o el id con el título.",
+      bunnyReady: "La autenticación de Bunny está activa. La inserción se firma en el servidor, sin enlace de descarga.",
+      bunnyMissing: "Bunny no está configurado. Pon BUNNY_LIBRARY_ID y BUNNY_TOKEN_KEY en el servidor.",
       videoLink: "Enlace de Bunny o identificador",
       videoInvalid: "Usa el enlace de inserción de Bunny o el identificador. Un enlace de descarga no se acepta.",
       edit: "Editar",
